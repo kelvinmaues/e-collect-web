@@ -1,13 +1,41 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 import { Map, TileLayer, Marker, Popup } from "react-leaflet";
+// api
+import api from "../../services/api";
 // components
 import Header from "../../components/Header";
-
 // assets
 import "./style.css";
+
+// array or object: Manually inform the variable type with TypeScript
+interface Material {
+  id: number;
+  name: string;
+  image_url: string;
+}
+
 const CreateStation = () => {
+  const [materials, setMaterials] = useState<Material[]>([]);
+
+  const getMaterials = async () => {
+    api
+      .get("materials")
+      .then((res) => {
+        const { data = null } = res;
+        if (data) {
+          setMaterials(data);
+        }
+        console.log(res);
+      })
+      .catch((err) => console.log(err));
+  };
+
+  useEffect(() => {
+    getMaterials();
+  }, []);
+
   return (
     <div id="page-create-station">
       <Header>
@@ -104,48 +132,12 @@ const CreateStation = () => {
           </legend>
 
           <ul className="items-grid">
-            <li className="selected">
-              <img
-                src="http://localhost:3333/uploads/pilhas_baterias.svg"
-                alt="pilhas e baterias"
-              />
-              <span>Pilhas e Baterias</span>
-            </li>
-            <li>
-              <img
-                src="http://localhost:3333/uploads/pilhas_baterias.svg"
-                alt="pilhas e baterias"
-              />
-              <span>Pilhas e Baterias</span>
-            </li>
-            <li>
-              <img
-                src="http://localhost:3333/uploads/pilhas_baterias.svg"
-                alt="pilhas e baterias"
-              />
-              <span>Pilhas e Baterias</span>
-            </li>
-            <li>
-              <img
-                src="http://localhost:3333/uploads/pilhas_baterias.svg"
-                alt="pilhas e baterias"
-              />
-              <span>Pilhas e Baterias</span>
-            </li>
-            <li>
-              <img
-                src="http://localhost:3333/uploads/pilhas_baterias.svg"
-                alt="pilhas e baterias"
-              />
-              <span>Pilhas e Baterias</span>
-            </li>
-            <li>
-              <img
-                src="http://localhost:3333/uploads/pilhas_baterias.svg"
-                alt="pilhas e baterias"
-              />
-              <span>Pilhas e Baterias</span>
-            </li>
+            {materials.map((material) => (
+              <li key={`${material.id}`}>
+                <img src={material.image_url} alt={material.name} />
+                <span>{material.name}</span>
+              </li>
+            ))}
           </ul>
         </fieldset>
         <button type="submit">Cadastrar ponto de coleta</button>
