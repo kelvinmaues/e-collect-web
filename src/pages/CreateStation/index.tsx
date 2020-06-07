@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 import { Map, TileLayer, Marker, Popup } from "react-leaflet";
+import axios from "axios";
 // api
 import api from "../../services/api";
 // components
@@ -16,8 +17,26 @@ interface Material {
   image_url: string;
 }
 
+interface State {
+  value: number;
+  label: string;
+}
+
+interface IBGEStateResponse {
+  id: number;
+  nome: string;
+}
+
+interface IBGECityResponse {
+  nome: string;
+}
+
 const CreateStation = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [selectedState, setSelectedState] = useState("0");
+  const [selectedCity, setSelectedCity] = useState("0");
 
   const getMaterials = async () => {
     api
@@ -27,7 +46,6 @@ const CreateStation = () => {
         if (data) {
           setMaterials(data);
         }
-        console.log(res);
       })
       .catch((err) => console.log(err));
   };
@@ -35,6 +53,44 @@ const CreateStation = () => {
   useEffect(() => {
     getMaterials();
   }, []);
+
+  useEffect(() => {
+    axios
+      .get<IBGEStateResponse[]>(
+        "https://servicodados.ibge.gov.br/api/v1/localidades/estados"
+      )
+      .then((res) => {
+        const { data = null } = res;
+        if (data) {
+          const mapped = data.map((el) => ({ value: el.id, label: el.nome }));
+          setStates(mapped);
+        }
+      })
+      .catch((err) => console.log(err));
+  }, []);
+
+  const handleState = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedState(event.target.value);
+  };
+
+  useEffect(() => {
+    axios
+      .get<IBGECityResponse[]>(
+        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState}/municipios`
+      )
+      .then((res) => {
+        const { data = null } = res;
+        if (data) {
+          const mapped = data.map((el) => el.nome);
+          setCities(mapped);
+        }
+      })
+      .catch((err) => console.log(err));
+  }, [selectedState]);
+
+  const handleCity = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCity(event.target.value);
+  };
 
   return (
     <div id="page-create-station">
@@ -90,14 +146,34 @@ const CreateStation = () => {
           <div className="field-group">
             <div className="field">
               <label htmlFor="state">Estado</label>
-              <select name="state" id="state">
+              <select
+                name="state"
+                id="state"
+                value={selectedState}
+                onChange={handleState}
+              >
                 <option value="0">Selecione um estado</option>
+                {states.map((state) => (
+                  <option key={state.value} value={state.value}>
+                    {state.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="field">
               <label htmlFor="city">Cidade</label>
-              <select name="city" id="city">
+              <select
+                name="city"
+                id="city"
+                value={selectedCity}
+                onChange={handleCity}
+              >
                 <option value="0">Selecione uma cidade</option>
+                {cities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
