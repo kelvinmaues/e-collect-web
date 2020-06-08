@@ -1,6 +1,7 @@
-import React, { useEffect, useState, ChangeEvent } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState, ChangeEvent, FormEvent } from "react";
+import { Link, useHistory } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
+import { LeafletMouseEvent } from "leaflet";
 import { Map, TileLayer, Marker, Popup } from "react-leaflet";
 import axios from "axios";
 // api
@@ -23,8 +24,7 @@ interface State {
 }
 
 interface IBGEStateResponse {
-  id: number;
-  nome: string;
+  sigla: string;
 }
 
 interface IBGECityResponse {
@@ -33,10 +33,34 @@ interface IBGECityResponse {
 
 const CreateStation = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
-  const [states, setStates] = useState<State[]>([]);
+  const [states, setStates] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [selectedState, setSelectedState] = useState("0");
   const [selectedCity, setSelectedCity] = useState("0");
+  const [initialCoords, setInitialCoords] = useState<[number, number]>([0, 0]);
+  const [selectedCoords, setSelectedCoords] = useState<[number, number]>([
+    0,
+    0,
+  ]);
+  const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    whatsapp: "",
+    street: "",
+    neighborhood: "",
+    zipcode: "",
+    complement: "",
+  });
+
+  const history = useHistory();
+
+  useEffect(() => {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const { latitude, longitude } = position.coords;
+      setInitialCoords([latitude, longitude]);
+    });
+  }, []);
 
   const getMaterials = async () => {
     api
@@ -62,7 +86,7 @@ const CreateStation = () => {
       .then((res) => {
         const { data = null } = res;
         if (data) {
-          const mapped = data.map((el) => ({ value: el.id, label: el.nome }));
+          const mapped = data.map((el) => el.sigla);
           setStates(mapped);
         }
       })
@@ -92,6 +116,70 @@ const CreateStation = () => {
     setSelectedCity(event.target.value);
   };
 
+  const handleMapClick = (event: LeafletMouseEvent) => {
+    const { lat, lng } = event.latlng;
+    setSelectedCoords([lat, lng]);
+  };
+
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
+
+  const handleSelectedMaterials = (id: number) => {
+    const alreadySelected = selectedMaterials.findIndex((el) => el === id);
+    if (alreadySelected >= 0) {
+      const filteredMaterials = selectedMaterials.filter((el) => el !== id);
+      setSelectedMaterials(filteredMaterials);
+    } else {
+      setSelectedMaterials([id, ...selectedMaterials]);
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const {
+      name,
+      email,
+      whatsapp,
+      street,
+      neighborhood,
+      zipcode,
+      complement,
+    } = formData;
+    const state = selectedState;
+    const city = selectedCity;
+    const [latitude, longitude] = selectedCoords;
+    const materials = selectedMaterials;
+
+    const data = {
+      name,
+      email,
+      whatsapp,
+      street,
+      neighborhood,
+      zipcode,
+      complement,
+      state,
+      city,
+      latitude,
+      longitude,
+      materials,
+    };
+
+    try {
+      await api.post("stations", data);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      alert("Ponto de coleta criado!");
+      history.push("/");
+    }
+  };
+
   return (
     <div id="page-create-station">
       <Header>
@@ -100,7 +188,7 @@ const CreateStation = () => {
           Voltar para home
         </Link>
       </Header>
-      <form>
+      <form onSubmit={handleSubmit}>
         <h1>
           Cadastro de <br /> ponto de coleta
         </h1>
@@ -111,16 +199,31 @@ const CreateStation = () => {
           </legend>
           <div className="field">
             <label htmlFor="name">Nome da entidade</label>
-            <input type="text" name="name" id="name" />
+            <input
+              type="text"
+              name="name"
+              id="name"
+              onChange={handleInputChange}
+            />
           </div>
           <div className="field-group">
             <div className="field">
               <label htmlFor="email">E-mail</label>
-              <input type="email" name="email" id="email" />
+              <input
+                type="email"
+                name="email"
+                id="email"
+                onChange={handleInputChange}
+              />
             </div>
             <div className="field">
               <label htmlFor="whatsapp">Whatsapp</label>
-              <input type="text" name="whatsapp" id="whatsapp" />
+              <input
+                type="text"
+                name="whatsapp"
+                id="whatsapp"
+                onChange={handleInputChange}
+              />
             </div>
           </div>
         </fieldset>
@@ -131,14 +234,14 @@ const CreateStation = () => {
             <span>Selecione o endereço no mapa</span>
           </legend>
 
-          <Map center={[-23.6431282, -46.660879]} zoom={15}>
+          <Map center={initialCoords} zoom={15} onClick={handleMapClick}>
             <TileLayer
               attribution='&amp;copy <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <Marker position={[-23.6431282, -46.660879]}>
+            <Marker position={selectedCoords}>
               <Popup>
-                A pretty CSS3 popup. <br /> Easily customizable.
+                Você está aqui. <br /> Easily customizable.
               </Popup>
             </Marker>
           </Map>
@@ -154,8 +257,8 @@ const CreateStation = () => {
               >
                 <option value="0">Selecione um estado</option>
                 {states.map((state) => (
-                  <option key={state.value} value={state.value}>
-                    {state.label}
+                  <option key={state} value={state}>
+                    {state}
                   </option>
                 ))}
               </select>
@@ -181,22 +284,42 @@ const CreateStation = () => {
           <div className="field-group">
             <div className="field">
               <label htmlFor="street">Rua</label>
-              <input type="text" name="street" id="street" />
+              <input
+                type="text"
+                name="street"
+                id="street"
+                onChange={handleInputChange}
+              />
             </div>
             <div className="field">
               <label htmlFor="neighborhood">Bairro</label>
-              <input type="text" name="neighborhood" id="neighborhood" />
+              <input
+                type="text"
+                name="neighborhood"
+                id="neighborhood"
+                onChange={handleInputChange}
+              />
             </div>
           </div>
 
           <div className="field-group">
             <div className="field">
               <label htmlFor="zipcode">CEP</label>
-              <input type="text" name="zipcode" id="zipcode" />
+              <input
+                type="text"
+                name="zipcode"
+                id="zipcode"
+                onChange={handleInputChange}
+              />
             </div>
             <div className="field">
               <label htmlFor="complement">Complemento</label>
-              <input type="text" name="complement" id="complement" />
+              <input
+                type="text"
+                name="complement"
+                id="complement"
+                onChange={handleInputChange}
+              />
             </div>
           </div>
         </fieldset>
@@ -209,14 +332,30 @@ const CreateStation = () => {
 
           <ul className="items-grid">
             {materials.map((material) => (
-              <li key={`${material.id}`}>
+              <li
+                key={`${material.id}`}
+                onClick={() => handleSelectedMaterials(material.id)}
+                className={
+                  selectedMaterials.includes(material.id) ? "selected" : ""
+                }
+                style={{
+                  cursor: "pointer",
+                }}
+              >
                 <img src={material.image_url} alt={material.name} />
                 <span>{material.name}</span>
               </li>
             ))}
           </ul>
         </fieldset>
-        <button type="submit">Cadastrar ponto de coleta</button>
+        <button
+          type="submit"
+          style={{
+            cursor: "pointer",
+          }}
+        >
+          Cadastrar ponto de coleta
+        </button>
       </form>
     </div>
   );
